@@ -349,17 +349,17 @@ export default function ProfilePage() {
             <p className="text-sm text-muted-foreground mb-4">
               You will be redirected to the home page after signing out.
             </p>
-            <Button
-              onClick={async () => {
-                await signOut({ redirect: false })
-                window.location.href = '/'
-              }}
-              variant="outline"
-              className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
+           <Button
+  onClick={async () => {
+    // NextAuth session clear karke makhhan ki tarah home page par le jayega
+    await signOut({ callbackUrl: '/' })
+  }}
+  variant="outline"
+  className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
+>
+  <LogOut className="w-4 h-4 mr-2" />
+  Sign Out
+</Button>
           </div>
         </motion.div>
       </div>
