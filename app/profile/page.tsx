@@ -2,9 +2,9 @@
 // app/profile/page.tsx
 
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter }           from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { motion }              from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   User, Mail, Shield, Calendar, LogOut,
   Edit3, Check, X, Loader2, Camera, ImageIcon
@@ -13,15 +13,15 @@ import { Button } from '@/components/ui/button'
 
 export default function ProfilePage() {
   const { data: session, status, update } = useSession()
-  const router  = useRouter()
+  const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const [isEditing,   setIsEditing]   = useState(false)
-  const [isSaving,    setIsSaving]    = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [error,       setError]       = useState('')
-  const [success,     setSuccess]     = useState('')
-  const [name,        setName]        = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [name, setName] = useState('')
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/login')
@@ -74,9 +74,9 @@ export default function ProfilePage() {
       const formData = new FormData()
       formData.append('photo', file)
 
-      const res  = await fetch('/api/user/upload-photo', {
+      const res = await fetch('/api/user/upload-photo', {
         method: 'POST',
-        body:   formData,
+        body: formData,
       })
       const data = await res.json()
 
@@ -108,10 +108,10 @@ export default function ProfilePage() {
     setSuccess('')
 
     try {
-      const res  = await fetch('/api/user/update', {
-        method:  'PATCH',
+      const res = await fetch('/api/user/update', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name: trimmed }),
+        body: JSON.stringify({ name: trimmed }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Update failed')
@@ -262,7 +262,7 @@ export default function ProfilePage() {
                       value={name}
                       onChange={e => { setName(e.target.value); setError('') }}
                       onKeyDown={e => {
-                        if (e.key === 'Enter')  handleSaveName()
+                        if (e.key === 'Enter') handleSaveName()
                         if (e.key === 'Escape') cancelEdit()
                       }}
                       autoFocus
@@ -283,7 +283,7 @@ export default function ProfilePage() {
                   >
                     {isSaving
                       ? <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                      : <Check   className="w-4 h-4 text-primary" />
+                      : <Check className="w-4 h-4 text-primary" />
                     }
                   </button>
                   <button
@@ -350,7 +350,10 @@ export default function ProfilePage() {
               You will be redirected to the home page after signing out.
             </p>
             <Button
-              onClick={() => signOut({ callbackUrl: '/' })}
+              onClick={async () => {
+                await signOut({ redirect: false })
+                window.location.href = '/'
+              }}
               variant="outline"
               className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
             >
