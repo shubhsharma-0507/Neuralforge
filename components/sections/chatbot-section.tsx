@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from 'react'
@@ -10,28 +9,18 @@ import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { LoginRequiredModal } from '@/components/ui/login-required-modal'
-import { useAuthGuard } from '@/hooks/useAuthGuard'
+import { useSession } from 'next-auth/react'
 
 type MessageType = { role: string; content: string }
 
 function ChatMessage({ message, index }: { message: MessageType; index: number }) {
-  const [copied, setCopied] = useState(false)
   const isBot = message.role === 'assistant'
-
-  const copyCode = () => {
-    const codeMatch = message.content.match(/```[\s\S]*?```/)
-    if (codeMatch) {
-      navigator.clipboard.writeText(codeMatch[0].replace(/```\w*\n?/g, ''))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, x: isBot ? -20 : 20 }}
       animate={{ opacity: 1, y: 0, x: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.1 }}
+      transition={{ duration: 0.4, delay: index * 0.05 }}
       className={`flex gap-3 ${isBot ? '' : 'flex-row-reverse'}`}
     >
       <div className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center ${
@@ -82,20 +71,21 @@ function ChatMessage({ message, index }: { message: MessageType; index: number }
 }
 
 export default function ChatbotSection() {
-  const sectionRef = useRef(null)
-  const isInView   = useInView(sectionRef, { once: true, margin: "-100px" })
+  const sectionRef     = useRef(null)
+  const isInView       = useInView(sectionRef, { once: true, margin: "-100px" })
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // ── Auth guard ──────────────────────────────────────────────────
-  const { isLoggedIn, showModal, closeModal, guardedAction } = useAuthGuard()
+  const { data: session, status } = useSession()
+  const isLoggedIn = !!session?.user
+  const isLoading  = status === 'loading'
 
   const [messages,  setMessages]  = useState<MessageType[]>([
     { role: "assistant", content: "Hello! How can I help you today?" }
   ])
-  const [input,     setInput]     = useState('')
-  const [isTyping,  setIsTyping]  = useState(false)
+  const [input,    setInput]    = useState('')
+  const [isTyping, setIsTyping] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
-  // Auto scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
@@ -114,10 +104,18 @@ export default function ChatbotSection() {
     }
   }
 
-  const doSend = async () => {
-    if (!input.trim()) return
+  // ── Main send function ──────────────────────────────────────────
+  const handleSend = async () => {
+    // Not logged in → show modal
+    if (!isLoggedIn) {
+      setShowModal(true)
+      return
+    }
 
-    const userMessage = { role: "user", content: input }
+    const trimmed = input.trim()
+    if (!trimmed || isTyping) return
+
+    const userMessage = { role: "user", content: trimmed }
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInput("")
@@ -125,39 +123,35 @@ export default function ChatbotSection() {
 
     try {
       const response = await fetch("/api/chat", {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updatedMessages }),
+        body:    JSON.stringify({ messages: updatedMessages }),
       })
 
       const data = await response.json()
 
-      // 401 → show login modal
       if (response.status === 401) {
-        setMessages(prev => prev.slice(0, -1)) // remove user message
-        setInput(userMessage.content)           // restore input
-        guardedAction(() => {})
+        setMessages(prev => prev.slice(0, -1))
+        setInput(trimmed)
+        setShowModal(true)
         return
       }
 
       await typeMessage(data?.reply || data?.choices?.[0]?.message?.content || "No response")
     } catch (error) {
-      console.error(error)
+      console.error('[chat] error:', error)
       await typeMessage("Sorry, something went wrong. Please try again.")
     } finally {
       setIsTyping(false)
     }
   }
 
-  // Guarded send — shows modal if not logged in
-  const sendMessage = () => guardedAction(doSend)
-
   return (
     <>
       {/* Login Modal */}
       <LoginRequiredModal
         isOpen={showModal}
-        onClose={closeModal}
+        onClose={() => setShowModal(false)}
         feature="AI Chatbot"
       />
 
@@ -167,7 +161,7 @@ export default function ChatbotSection() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
 
-            {/* LEFT: Content */}
+            {/* LEFT */}
             <motion.div
               initial={{ opacity: 0, x: -50 }}
               animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -183,8 +177,7 @@ export default function ChatbotSection() {
               </h2>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed text-pretty">
                 Engage in natural conversations about your code. Get instant answers,
-                explanations, and suggestions powered by advanced AI that understands
-                context and learns from your codebase.
+                explanations, and suggestions powered by advanced AI.
               </p>
 
               <div className="space-y-4 mb-8">
@@ -210,7 +203,8 @@ export default function ChatbotSection() {
               </div>
 
               <Button
-                onClick={sendMessage}
+                type="button"
+                onClick={handleSend}
                 className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-0"
               >
                 {isLoggedIn
@@ -236,7 +230,7 @@ export default function ChatbotSection() {
               className="relative"
             >
               <div className="glass rounded-3xl p-6 border-glow">
-                {/* Chat Header */}
+                {/* Header */}
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/50">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-white" />
@@ -255,7 +249,6 @@ export default function ChatbotSection() {
                   {messages.map((msg, i) => (
                     <ChatMessage key={i} message={msg} index={i} />
                   ))}
-
                   {isTyping && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
                       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
@@ -279,22 +272,25 @@ export default function ChatbotSection() {
                     type="text"
                     value={input}
                     onChange={e => setInput(e.target.value)}
-onKeyDown={e => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    sendMessage()
-  }
-}}                    placeholder={isLoggedIn ? "Ask anything about your code..." : "Login to chat with AI..."}
-                    className="flex-1 bg-secondary/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSend()
+                      }
+                    }}
+                    placeholder={isLoggedIn ? "Ask anything about your code..." : "Login to chat with AI..."}
+                    disabled={isTyping}
+                    className="flex-1 bg-secondary/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all disabled:opacity-50"
                   />
-                 <Button
-  type="button"
-  size="icon"
-  onClick={sendMessage}
-  className="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500"
->
-  {isLoggedIn ? <Send className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-</Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={isTyping || isLoading}
+                    className="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 disabled:opacity-50"
+                  >
+                    {isLoggedIn ? <Send className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  </Button>
                 </div>
               </div>
 
