@@ -71,10 +71,11 @@ export default function Navbar() {
     return () => document.removeEventListener('click', close)
   }, [isUserMenuOpen])
 
-  const handleSignOut = async () => {
-    setIsUserMenuOpen(false)
-    await signOut({ callbackUrl: '/' })
-  }
+ const handleSignOut = async () => {
+  setIsUserMenuOpen(false)
+  // NextAuth automatically redirects back to the home page securely
+  await signOut({ callbackUrl: '/' })
+}
 
   return (
     <>
