@@ -84,10 +84,12 @@ export default function ChatbotSection() {
   const [isTyping,  setIsTyping]  = useState(false)
   const [showModal, setShowModal] = useState(false)
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isTyping])
-
+ useEffect(() => {
+  messagesEndRef.current?.scrollIntoView({ 
+    behavior: isTyping ? 'auto' : 'smooth',
+    block: 'nearest' // ── 💡 Yeh chatbot box ko upar jump karne se rokega ──
+  })
+}, [messages, isTyping])
   const typeMessage = async (text: string) => {
     let currentText = ""
     setMessages(prev => [...prev, { role: "assistant", content: "" }])
@@ -239,8 +241,8 @@ export default function ChatbotSection() {
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 mb-4">
+{/* Messages */}
+<div className="space-y-4 h-[400px] max-h-[400px] overflow-y-auto pr-2 mb-4">
                   {messages.map((msg, i) => (
                     <ChatMessage key={i} message={msg} index={i} />
                   ))}
