@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, useInView } from 'framer-motion'
-import { Send, Bot, User, Sparkles, Copy, Check, Lock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Send, Bot, User, Sparkles, Check, Lock } from 'lucide-react'
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
@@ -15,7 +14,6 @@ type MessageType = { role: string; content: string }
 
 function ChatMessage({ message, index }: { message: MessageType; index: number }) {
   const isBot = message.role === 'assistant'
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, x: isBot ? -20 : 20 }}
@@ -71,19 +69,19 @@ function ChatMessage({ message, index }: { message: MessageType; index: number }
 }
 
 export default function ChatbotSection() {
-  const sectionRef     = useRef(null)
+  const sectionRef     = useRef<HTMLElement>(null)
   const isInView       = useInView(sectionRef, { once: true, margin: "-100px" })
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef       = useRef<HTMLInputElement>(null)
 
-  const { data: session, status } = useSession()
+  const { data: session } = useSession()
   const isLoggedIn = !!session?.user
-  const isLoading  = status === 'loading'
 
   const [messages,  setMessages]  = useState<MessageType[]>([
     { role: "assistant", content: "Hello! How can I help you today?" }
   ])
-  const [input,    setInput]    = useState('')
-  const [isTyping, setIsTyping] = useState(false)
+  const [input,     setInput]     = useState('')
+  const [isTyping,  setIsTyping]  = useState(false)
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
@@ -104,18 +102,10 @@ export default function ChatbotSection() {
     }
   }
 
-  // ── Main send function ──────────────────────────────────────────
-  const handleSend = async () => {
-    // Not logged in → show modal
-    if (!isLoggedIn) {
-      setShowModal(true)
-      return
-    }
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || isTyping) return
 
-    const trimmed = input.trim()
-    if (!trimmed || isTyping) return
-
-    const userMessage = { role: "user", content: trimmed }
+    const userMessage = { role: "user", content: text.trim() }
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInput("")
@@ -132,12 +122,16 @@ export default function ChatbotSection() {
 
       if (response.status === 401) {
         setMessages(prev => prev.slice(0, -1))
-        setInput(trimmed)
+        setInput(text)
         setShowModal(true)
         return
       }
 
-      await typeMessage(data?.reply || data?.choices?.[0]?.message?.content || "No response")
+      await typeMessage(
+        data?.reply ||
+        data?.choices?.[0]?.message?.content ||
+        "No response"
+      )
     } catch (error) {
       console.error('[chat] error:', error)
       await typeMessage("Sorry, something went wrong. Please try again.")
@@ -146,9 +140,16 @@ export default function ChatbotSection() {
     }
   }
 
+  const handleButtonClick = () => {
+    if (!isLoggedIn) {
+      setShowModal(true)
+      return
+    }
+    sendMessage(input)
+  }
+
   return (
     <>
-      {/* Login Modal */}
       <LoginRequiredModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -181,12 +182,7 @@ export default function ChatbotSection() {
               </p>
 
               <div className="space-y-4 mb-8">
-                {[
-                  'Context-aware code understanding',
-                  'Multi-language support',
-                  'Real-time code suggestions',
-                  'Integration with your IDE'
-                ].map((feature, i) => (
+                {['Context-aware code understanding', 'Multi-language support', 'Real-time code suggestions', 'Integration with your IDE'].map((feature, i) => (
                   <motion.div
                     key={feature}
                     initial={{ opacity: 0, x: -20 }}
@@ -202,17 +198,16 @@ export default function ChatbotSection() {
                 ))}
               </div>
 
-              <Button
+              <button
                 type="button"
-                onClick={handleSend}
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-0"
+                onClick={handleButtonClick}
+                className="inline-flex items-center px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 {isLoggedIn
-                  ? <Sparkles className="w-4 h-4 mr-2" />
-                  : <Lock     className="w-4 h-4 mr-2" />
+                  ? <><Sparkles className="w-4 h-4 mr-2" />Try AI Chatbot</>
+                  : <><Lock className="w-4 h-4 mr-2" />Try AI Chatbot</>
                 }
-                Try AI Chatbot
-              </Button>
+              </button>
 
               {!isLoggedIn && (
                 <p className="mt-3 text-xs text-muted-foreground flex items-center gap-1">
@@ -222,7 +217,7 @@ export default function ChatbotSection() {
               )}
             </motion.div>
 
-            {/* RIGHT: Chat UI */}
+            {/* RIGHT */}
             <motion.div
               initial={{ opacity: 0, x: 50 }}
               animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -266,32 +261,62 @@ export default function ChatbotSection() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input */}
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSend()
-                      }
-                    }}
-                    placeholder={isLoggedIn ? "Ask anything about your code..." : "Login to chat with AI..."}
-                    disabled={isTyping}
-                    className="flex-1 bg-secondary/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all disabled:opacity-50"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    onClick={handleSend}
-                    disabled={isTyping || isLoading}
-                    className="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 disabled:opacity-50"
-                  >
-                    {isLoggedIn ? <Send className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                  </Button>
-                </div>
+                {/* Input row */}
+<div style={{ display: 'flex', gap: '12px', alignItems: 'center', position: 'relative', zIndex: 10 }}>
+  <input
+    ref={inputRef}
+    type="text"
+    value={input}
+    onChange={e => setInput(e.target.value)}
+    onKeyDown={e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleButtonClick()
+      }
+    }}
+    placeholder={isLoggedIn ? "Ask anything about your code..." : "Login to chat with AI..."}
+    disabled={isTyping}
+    style={{
+      flex: 1,
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: '12px',
+      padding: '12px 16px',
+      fontSize: '14px',
+      color: 'inherit',
+      outline: 'none',
+    }}
+  />
+  
+  {/* Send button — Fixed with explicit behavior and pointer protection */}
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation(); // Parent animation wrappers ko event block karne se rokega
+      handleButtonClick();
+    }}
+    disabled={isTyping}
+    style={{
+      width: '40px',
+      height: '40px',
+      borderRadius: '12px',
+      background: 'linear-gradient(to right, #3b82f6, #06b6d4)',
+      border: 'none',
+      cursor: isTyping ? 'not-allowed' : 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      opacity: isTyping ? 0.5 : 1,
+      position: 'relative',
+      zIndex: 20 // Taaki koi framer-motion overlay ise daba na sake
+    }}
+  >
+    {/* SVG target miss na kare isliye pointerEvents none lagaya */}
+    <Send style={{ width: '16px', height: '16px', color: 'white', pointerEvents: 'none' }} />
+  </button>
+</div>
+
               </div>
 
               <div className="absolute -bottom-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 blur-2xl" />
